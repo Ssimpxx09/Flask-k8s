@@ -37,8 +37,9 @@ spec:
           value: flask_db
         resources:
           requests:
-            cpu: "0.2"
-            memory: "250Mi"
+            cpu: "200m"
+            memory: "256Mi"
           limits:
-            cpu: "0.5"
-            memory: "500Mi"
+            cpu: "500m"
+            memory: "512Mi"
+
