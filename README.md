@@ -46,9 +46,10 @@ kubectl apply -f mongo-pvc.yaml
    kubectl apply -f mongo-service.yaml
 kubectl apply -f flask-service.yaml
 
- * Enable Autoscaling (HPA):
-   Apply the Horizontal Pod Autoscaler.
-   kubectl apply -f flask-hpa.yaml
+ * Horizontal Pod Autoscaler (HPA)
+HPA was configured to automatically scale the Flask application based on CPU utilization with a minimum of 2 pods and a maximum of 5 pods.
+In the local Minikube environment, CPU metrics could not be retrieved because the Metrics Server image could not be pulled due to restricted network access. As a result, HPA showed <unknown> CPU values.
+This is an environmental limitation of the local setup. In a production or unrestricted network environment, HPA functions correctly as expected.l
 
 Accessing the App
 To access the Flask application externally via Minikube:
@@ -64,6 +65,7 @@ In Kubernetes, pods have dynamic IP addresses that change whenever a pod is recr
  * Routing: When Flask calls this hostname, Kube-DNS resolves it to the Service's Virtual IP, which then load-balances the traffic to the actual healthy MongoDB pod(s).
 ⚖️ Resource Requests and Limits
 Resource management ensures fair usage of hardware and prevents a single application from crashing the node.
+ * Auth example: mongodb://<username>:<password>@mongo-service:27017
  * Requests (Soft Reservation): This is the minimum amount of CPU/RAM the application needs to start. Kubernetes uses this number to decide which Node has enough space to schedule the pod.
    * Example Config: cpu: "200m" (0.2 cores), memory: "250Mi".
  * Limits (Hard Cap): This is the maximum resources the container is allowed to use.
@@ -73,7 +75,7 @@ Resource management ensures fair usage of hardware and prevents a single applica
 
 5. Design Choices
  * StatefulSet over Deployment: I used a StatefulSet for MongoDB because databases need a stable network identity and persistent storage that sticks to the pod, whereas standard Deployments can lose data connectivity upon restart.
- * Persistent Volume Claims (PVC) over emptyDir: I configured PVCs to ensure database records are stored permanently on the disk. An emptyDir volume would have wiped all data the moment the pod was deleted or restarted.
+ * Persistent Volume Claims (PVC) over emptyDir: I configured PVCs to ensure database records are stored persisted on disk. An emptyDir volume would have wiped all data the moment the pod was deleted or restarted.
  * Kubernetes Secrets over Hardcoding: I stored database credentials in Kubernetes Secrets instead of hardcoding them in the app.py file to ensure sensitive data is not exposed in the source code or version control.
  * Horizontal Pod Autoscaler (HPA): I implemented HPA to automatically scale the Flask app from 2 to 5 replicas when CPU usage exceeds 70%, ensuring the app stays responsive under high load without wasting resources during low traffic.
  * NodePort Service: I chose a NodePort service to expose the application because it is the standard, simplest way to access services externally in a local Minikube environment without complex load balancer configurations.
@@ -94,10 +96,10 @@ Test 2: Horizontal Pod Autoscaling (HPA)
 Scenario: Simulate high traffic to trigger scaling.
  * Baseline: Ensure only 2 replicas are running.
  * Load Generation: Start a temporary container to generate infinite requests (simulating high CPU load).
-   kubectl run -i --tty load-generator --rm --image=busybox --restart=Never -- /bin/sh -c "while true; do wget -q -O- http://flask-service; done"
+   kubectl run -i --tty load-generator --rm --image=busybox --restart=Never -- /bin/sh -c "while true; do wget -q -O- http://flask-service:5000; done"
 
  * Observation: Watch the HPA status.
    kubectl get hpa -w
 
-   * Result: You will see the TARGETS percentage spike above 70% (e.g., 150%/70%).
+   * Expected Result (Production / Unrestricted Network): The TARGETS percentage exceeds 70% and replicas scale from 2 up to 5.In the local Minikube environment, this could not be demonstrated due to Metrics Server image pull restrictions.
    * Scaling: Run kubectl get deployment flask-app. The replica count will increase from 2 to a maximum of 5 as defined in the HPA spec.
